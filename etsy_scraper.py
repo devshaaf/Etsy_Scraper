@@ -1,0 +1,1 @@
+search_input_selector = "//input[data-id='search-query']"
