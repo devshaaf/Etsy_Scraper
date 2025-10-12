@@ -12,7 +12,7 @@ img_link_selector = ".//img[@data-clg-id='WtImage']"
 pdt_link_selector = ".//a[contains(@class, 'listing-link')]"
 pdt_name_selector = ".//h3[contains(@class, 'wt-text-body-small')]"
 company_name_selector = ".//span[contains(@class,'clickable-shop-name')]"
-next_btn_selector = "//a[@class='wt-btn wt-action-group__item wt-btn--small wt-btn--icon']"
+next_btn_selector = "//*[@id='content']/div/div[1]/div/div[4]/div[9]/div[2]/div[8]/div/div/div/div[2]/nav/div/div[9]/a"
 pdt_price_selector = ".//span[@class='currency-value']"
 rating_selector = ".//span[@class='wt-text-title-small']"
 review_count_selector = ".//p[@class='wt-text-body-smaller  wt-text-black']"
@@ -30,11 +30,12 @@ try:
     search_btn = wait.until(EC.element_to_be_clickable(
         (By.XPATH, search_btn_selector)
     ))
-    print(search_input)
-    search_input.send_keys("handmade mug")
+    search_input.send_keys("Bags")
     search_btn.click()
 
-    next_btn = driver.find_element(By.XPATH, next_btn_selector)
+    next_btn = wait.until(EC.visibility_of_element_located(
+        (By.XPATH, next_btn_selector)
+    ))
 
     if wait.until(EC.visibility_of_element_located((By.XPATH, pdt_list_selector))):
         product_cards = driver.find_elements(By.XPATH, pdt_card_selector)
@@ -51,18 +52,20 @@ try:
                 review_count = product_card.find_element(By.XPATH, review_count_selector)
                 print(f'Product name: {product_name.text}')
                 print(f'Company name: {company_name.text}')
-                print(f'Product link: {product_link.get_attribute('href')}')
-                print(f'Image link: {img_link.get_attribute('src')}')
+                print(f'Product link: {product_link.get_attribute("href")}')
+                print(f'Image link: {img_link.get_attribute("src")}')
                 print(f'Product price: {product_price.text}')
                 print(f'Rating: {review.text}')
                 print(f'Review count: {review_count.text}')
             except Exception as e:
                 print("Error in finding product elements")
+        print("Clicked Next button")
+        next_btn.click()
     else:
         print("products list not found")
 
 except Exception as e:
     print(f"Error: {e}")
 finally:
-    time.sleep(10)
+    time.sleep(120)
     driver.quit()
