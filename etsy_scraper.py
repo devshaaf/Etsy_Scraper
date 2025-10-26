@@ -1,6 +1,6 @@
 import time
 from selenium import webdriver
-from selenium.common import NoSuchElementException, ElementNotInteractableException, TimeoutException
+from selenium.common import NoSuchElementException, TimeoutException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
@@ -15,14 +15,26 @@ class EtsyScraper:
         self.pdt_link_selector = ".//a[contains(@class, 'listing-link')]"
         self.pdt_name_selector = ".//h3[contains(@class, 'wt-text-body-small')]"
         self.company_name_selector = ".//span[contains(@class,'clickable-shop-name')]"
-        self.next_btn_selector = "//a[.//span[normalize-space(text())='Next']]"
+        self.pagination_container_selector = "//div[contains(@class, 'search-pagination')]"
         self.pdt_price_selector = ".//span[@class='currency-value']"
         self.rating_selector = ".//span[@class='wt-text-title-small']"
         self.review_count_selector = ".//p[@class='wt-text-body-smaller  wt-text-black']"
         self.driver = webdriver.Chrome()
-        self.wait = WebDriverWait(self.driver, 10)
+        self.wait = WebDriverWait(self.driver, 15)
         self.url = "https://www.etsy.com/"
+        self.pageAvailable = True
 
+
+
+    def get_element(self, parent, by, selector):
+        try:
+            element = parent.find_element(by, selector)
+            print("Found Product Element")
+            return element
+        except(TimeoutException,NoSuchElementException):
+            print("Element not found")
+            return None
+    
     def scrape(self):
         self.driver.get(self.url)
         search_input = self.wait.until(EC.visibility_of_element_located(
@@ -33,59 +45,89 @@ class EtsyScraper:
             (By.XPATH, self.search_btn_selector)
         ))
         search_btn.click()
+        time.sleep(3)
+
+        page = 1
+        while self.pageAvailable:
+            try:
+                self.wait.until(EC.visibility_of_element_located(
+                    (By.XPATH, self.pdt_list_selector))
+                )
+
+                products = self.wait.until(EC.visibility_of_all_elements_located(
+                    (By.XPATH, self.pdt_card_selector)
+                ))
+                print(f"Found {len(products)} products in page {page}")
+                for product in products:
+                    name = self.get_element(product, By.XPATH, self.pdt_name_selector)
+                    price = self.get_element(product, By.XPATH, self.pdt_price_selector)
+                    rating = self.get_element(product, By.XPATH, self.rating_selector)
+                    review_count = self.get_element(product, By.XPATH, self.review_count_selector)
+                    p_link = self.get_element(product, By.XPATH, self.pdt_link_selector)
+                    img_link = self.get_element(product, By.XPATH, self.img_link_selector)
+                    comp_name = self.get_element(product, By.XPATH, self.company_name_selector)
+
+                    if name and price and rating and review_count and p_link and img_link and comp_name:
+                        print(f"Product Name: {name.text}")
+                        print(f"Price: {price.text}")
+                        print(f"Rating: {rating.text}")
+                        print(f"Review Count: {review_count.text}")
+                        print(f"Product Link: {p_link.get_attribute('href')}")
+                        print(f"Image Link: {img_link.get_attribute('src')}")
+                        print(f"Company: {comp_name.text}")
+                    else:
+                        print("Product not found")
+                        # print(f"Product Name: {name}")
+                        # print(f"Price: {price}")
+                        # print(f"Rating: {rating}")
+                        # print(f"Review Count: {review_count}")
+                        # print(f"Product Link: {p_link}")
+                        # print(f"Image Link: {img_link}")
+                        # print(f"Company: {comp_name}")
+                page += 1
+                self.get_next_button(products)
+
+            except:
+                print("Error in scraping pages")
+                self.pageAvailable = False
+
+    def get_next_button(self, products):
+        self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         time.sleep(2)
 
+        next_btn = self.driver.execute_script("""
+            const container = document.querySelector('div.search-pagination');
+            if (!container) return null;
+            const links = container.querySelectorAll('a[data-clg-id="WtButton"] span');
+            for (let span of links) {
+                if (span.textContent.trim() === 'Next') {
+                return span.parentElement;
+                }
+            }
+            return null;
+            """)
+        try:
+            print(f"Next button found: {next_btn is not None}")
 
-        while True:
-            time.sleep(2)
-            try:
-                products = self.driver.find_elements(By.XPATH, self.pdt_card_selector)
-                print(f"{len(products)} products found")
-            except:
-                print("No products found")
-                return
+            if next_btn:
+                print("Next button found. Scrolling and clicking via JS...")
+                self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", next_btn)
+                time.sleep(1)
+                self.driver.execute_script("arguments[0].click();", next_btn)
+                print("Next button clicked. Waiting for page to load...")
+                if products:
+                    self.wait.until(EC.staleness_of(products[0]))  # Wait for old list to disappear
+                time.sleep(3)
+            else:
+                print("No Button found by the method.")
+                self.pageAvailable = False
 
-            time.sleep(5)
-
-            for product in products:
-                product_name = product.find_element(By.XPATH, self.pdt_name_selector)
-                product_price = product.find_element(By.XPATH, self.pdt_price_selector)
-                try:
-                    product_rating = product.find_element(By.XPATH, self.rating_selector)
-                    product_reviews = product.find_element(By.XPATH, self.review_count_selector)
-                    product_link = product.find_element(By.XPATH, self.pdt_link_selector)
-                except NoSuchElementException:
-                    product_rating = None
-                    product_reviews = None
-                    product_link = None
-                image_link = product.find_element(By.XPATH, self.img_link_selector)
-                company_name = product.find_element(By.XPATH, self.company_name_selector)
-
-                print(f"name: {product_name.text}")
-                print(f"price: {product_price.text}")
-                if product_rating and product_reviews and product_link:
-                    print(f"rating: {product_rating.text}")
-                    print(f"r_count: {product_reviews.text}")
-                    print(f"p_link: {product_link.get_attribute('href')}")
-                else:
-                    print(f"rating: {product_rating}")
-                    print(f"r_count: {product_reviews}")
-                    print(f"p_link: {product_link}")
-                print(f"img_link: {image_link.get_attribute('src')}")
-                print(f"comp_name: {company_name.text}")
-
-            try:
-                next_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, self.next_btn_selector)))
-                print("Clicked Next Button")
-                next_btn.click()
-            except (TimeoutException, ElementNotInteractableException):
-                print("No more pages to scrape")
-                break
+        except Exception as e:
+            print(f"Error during pagination: {e}")
+            self.pageAvailable = False
 
 
 
 
 scraper = EtsyScraper()
 scraper.scrape()
-
-
