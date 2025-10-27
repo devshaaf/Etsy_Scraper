@@ -1,6 +1,6 @@
 import time
 from selenium import webdriver
-from selenium.common import NoSuchElementException, TimeoutException
+from selenium.common import NoSuchElementException, TimeoutException, StaleElementReferenceException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
@@ -28,12 +28,12 @@ class EtsyScraper:
 
     def get_element(self, parent, by, selector):
         try:
+            time.sleep(1)
             element = parent.find_element(by, selector)
-            print("Found Product Element")
             return element
         except(TimeoutException,NoSuchElementException):
-            print("Element not found")
-            return None
+            print(f"Product not found {selector}")
+            return "N/A"
     
     def scrape(self):
         self.driver.get(self.url)
@@ -57,8 +57,10 @@ class EtsyScraper:
                 products = self.wait.until(EC.visibility_of_all_elements_located(
                     (By.XPATH, self.pdt_card_selector)
                 ))
+
                 print(f"Found {len(products)} products in page {page}")
                 for product in products:
+                    time.sleep(3)
                     name = self.get_element(product, By.XPATH, self.pdt_name_selector)
                     price = self.get_element(product, By.XPATH, self.pdt_price_selector)
                     rating = self.get_element(product, By.XPATH, self.rating_selector)
@@ -67,23 +69,21 @@ class EtsyScraper:
                     img_link = self.get_element(product, By.XPATH, self.img_link_selector)
                     comp_name = self.get_element(product, By.XPATH, self.company_name_selector)
 
-                    if name and price and rating and review_count and p_link and img_link and comp_name:
-                        print(f"Product Name: {name.text}")
-                        print(f"Price: {price.text}")
-                        print(f"Rating: {rating.text}")
-                        print(f"Review Count: {review_count.text}")
-                        print(f"Product Link: {p_link.get_attribute('href')}")
-                        print(f"Image Link: {img_link.get_attribute('src')}")
-                        print(f"Company: {comp_name.text}")
-                    else:
-                        print("Product not found")
-                        # print(f"Product Name: {name}")
-                        # print(f"Price: {price}")
-                        # print(f"Rating: {rating}")
-                        # print(f"Review Count: {review_count}")
-                        # print(f"Product Link: {p_link}")
-                        # print(f"Image Link: {img_link}")
-                        # print(f"Company: {comp_name}")
+                    try:
+                        if name != "N/A"and price != "N/A":
+                            print(f"Product Name: {name.text}")
+                            print(f"Price: {price.text}")
+                            print(f"Rating: {rating.text}")
+                            print(f"Review Count: {review_count.text}")
+                            print(f"Product Link: {p_link.get_attribute('href')}")
+                            print(f"Image Link: {img_link.get_attribute('src')}")
+                            print(f"Company: {comp_name.text}")
+                        else:
+                            print("In-Complete Product")
+                            continue
+                    except (StaleElementReferenceException, TimeoutException, NoSuchElementException) as e:
+                        print(f"Error in getting product details: {e}")
+                        continue
                 page += 1
                 self.get_next_button(products)
 
@@ -116,7 +116,7 @@ class EtsyScraper:
                 self.driver.execute_script("arguments[0].click();", next_btn)
                 print("Next button clicked. Waiting for page to load...")
                 if products:
-                    self.wait.until(EC.staleness_of(products[0]))  # Wait for old list to disappear
+                    self.wait.until(EC.staleness_of(products[0]))
                 time.sleep(3)
             else:
                 print("No Button found by the method.")
@@ -125,8 +125,6 @@ class EtsyScraper:
         except Exception as e:
             print(f"Error during pagination: {e}")
             self.pageAvailable = False
-
-
 
 
 scraper = EtsyScraper()
